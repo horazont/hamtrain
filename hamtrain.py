@@ -308,6 +308,8 @@ def q_freq_to_fullband():
                     band
                 )
             )
+        else:
+            correct_answer_str = band
         start, end = new_start, new_end
     else:
         correct_answer = band

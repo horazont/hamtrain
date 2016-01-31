@@ -127,6 +127,44 @@ def build_classband_index(db):
 
     return classbands
 
+
+def build_statusband_index(db):
+    statusbands = []
+    prev_endf = 0
+    prev_startf = 0
+    prev_status = None
+    for class_, _, (startf, endf), status, *_ in db:
+        if class_ == "E":
+            continue
+
+        if startf == prev_endf and prev_status == status:
+            startf = prev_startf
+            statusbands[-1] = (startf, endf), status
+        else:
+            statusbands.append(((startf, endf), status))
+
+        prev_startf, prev_endf, prev_status = startf, endf, status
+
+    return statusbands
+
+
+def build_powerband_index(db):
+    powerbands = []
+    prev_endf = 0
+    prev_startf = 0
+    prev_class = None
+    prev_P = None
+    for class_, _, (startf, endf), _, P, *_ in db:
+        if startf == prev_endf and prev_P == P and prev_class == class_:
+            startf = prev_startf
+            powerbands[-1] = (startf, endf), class_, P
+        else:
+            powerbands.append(((startf, endf), class_, P))
+
+        prev_startf, prev_endf, prev_class, prev_P = startf, endf, class_, P
+
+    return powerbands
+
 try:
     with open("db", "r") as infile:
         db = list(read_database(infile))
@@ -138,6 +176,8 @@ except FileNotFoundError:
 
 fullband_index = build_fullband_index(db)
 classbands_index = build_classband_index(db)
+statusband_index = build_statusband_index(db)
+powerband_index = build_powerband_index(db)
 
 
 def query(prompt, parser=str, subline=None):
@@ -259,29 +299,94 @@ def q_freq_to_fullband():
             if new_end < new_start:
                 new_start = new_end + (start - end)
 
-        correct_answer = (start, end) == (new_start, new_end)
+        is_correct = (start, end) == (new_start, new_end)
+        correct_answer = "none" if not is_correct else band
+        if not is_correct:
+            correct_answer_str = (
+                "none (close to {}, which is the {} band)".format(
+                    format_frequency_range((start, end)),
+                    band
+                )
+            )
         start, end = new_start, new_end
-        correct_answer = "none" if not correct_answer else band
     else:
         correct_answer = band
+        correct_answer_str = band
+
+    def check_length(s):
+        s = s.strip()
+        if not LENGTH_RE.match(s):
+            raise ValueError("not a valid length: {}".format(s))
+        return s.replace(" ", "")
 
     result = query(
         "which band is this: {}? ".format(
             format_frequency_range((start, end))
         ),
-        subline="type 'none' if you think this is incorrect"
+        subline="type 'none' if you think this is incorrect",
+        parser=check_length
     )
-    result = (result or "").replace(" ", "")
 
     print_eval(
         result == correct_answer,
-        correct_answer
+        correct_answer_str
     )
+
+
+def q_subband_status():
+    "service status in subband"
+    fs, status = RNG.choice(statusband_index)
+
+    def parse_status(s):
+        s = s.strip()
+        if s not in ["S", "P", "P+"]:
+            raise ValueError("not a valid status: {}".format(s))
+        return s
+
+    result = query(
+        "which status does HAM radio have in {}? ".format(
+            format_frequency_range(fs)
+        ),
+        parse_status
+    )
+
+    print_eval(
+        status.startswith(result),
+        status
+    )
+
+
+def q_subband_power():
+    "maximum power in subband"
+    fs, class_, P = RNG.choice(powerband_index)
+
+    def parse_power(s):
+        s = s.strip()
+        if not POWER_RE.match(s):
+            raise ValueError("not a valid power: {}".format(s))
+        return s.replace(" ", "")
+
+    result = query(
+        "which maximum power is allowed in {} for class {}? ".format(
+            format_frequency_range(fs),
+            class_
+        ),
+        parse_power
+    )
+
+    print_eval(
+        P == result,
+        P
+    )
+
 
 QUESTIONS = [
     q_fullband,
     q_fullband_bw,
     q_freq_to_fullband,
+    q_subband_status,
+    q_subband_power,
+]*3 + [
     q_class_E
 ]
 

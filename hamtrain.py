@@ -220,12 +220,14 @@ def q_fullband():
     "band wavelength to frequency range"
     bands = list(fullband_index.keys())
     band = RNG.choice(bands)
-    result = query("frequency range of {} band? ".format(band),
+    result = query("what is the frequency range of the {} band? ".format(band),
                    parse_frequency_range)
     print_eval(
         result == fullband_index[band][0],
         format_frequency_range(fullband_index[band][0])
     )
+
+    return result == fullband_index[band][0]
 
 
 def q_class_E():
@@ -238,7 +240,7 @@ def q_class_E():
         }
         return bands
 
-    result = query("all bands of class E? ")
+    result = query("which bands are allowed for class E? ")
     if result is None:
         result = set()
     else:
@@ -252,6 +254,9 @@ def q_class_E():
         ", ".join(result - bands)
     )
 
+    return ((1 - len(bands - result) / len(bands)) *
+            (1 - len(result - bands) / (len(result) or 1)))
+
 
 def q_fullband_bw():
     "band wavelength to max. bandwidth"
@@ -261,12 +266,16 @@ def q_fullband_bw():
         if fullband_index[band][1]:
             break
 
-    result = query("max. bandwidth of {} band? ".format(band),
-                   parse_frequency)
+    result = query(
+        "what is the maximum bandwidth allowed in the {} band? ".format(band),
+        parser=parse_frequency
+    )
     print_eval(
         result == fullband_index[band][1],
         format_frequency(fullband_index[band][1], wide=False)
     )
+
+    return result == fullband_index[band][1]
 
 
 def q_freq_to_fullband():
@@ -317,9 +326,12 @@ def q_freq_to_fullband():
 
     def check_length(s):
         s = s.strip()
+        s_nospaces = s.replace(" ", "")
+        if s_nospaces == "none":
+            return s
         if not LENGTH_RE.match(s):
             raise ValueError("not a valid length: {}".format(s))
-        return s.replace(" ", "")
+        return s_nospaces
 
     result = query(
         "which band is this: {}? ".format(
@@ -333,6 +345,8 @@ def q_freq_to_fullband():
         result == correct_answer,
         correct_answer_str
     )
+
+    return result == correct_answer
 
 
 def q_subband_status():
@@ -357,6 +371,8 @@ def q_subband_status():
         status
     )
 
+    return status.startswith(result) * 0.75 + (status == result)*0.25
+
 
 def q_subband_power():
     "maximum power in subband"
@@ -369,7 +385,7 @@ def q_subband_power():
         return s.replace(" ", "")
 
     result = query(
-        "which maximum power is allowed in {} for class {}? ".format(
+        "which maximum power is allowed in the {} band for class {}? ".format(
             format_frequency_range(fs),
             class_
         ),
@@ -380,6 +396,8 @@ def q_subband_power():
         P == result,
         P
     )
+
+    return P == result
 
 
 QUESTIONS = [
@@ -393,6 +411,20 @@ QUESTIONS = [
 ]
 
 
+score = 0
+nq = 0
 while True:
     q = RNG.choice(QUESTIONS)
-    q()
+    try:
+        score += q()
+        nq += 1
+    except (EOFError, KeyboardInterrupt):
+        break
+
+print()
+print()
+print("score: {:.2f} out of {}  ({:.0f}%)".format(
+    score,
+    nq,
+    score / (nq or 1) * 100
+))

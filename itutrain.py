@@ -5,6 +5,7 @@ import itertools
 import pickle
 import os
 import random
+import re
 import readline
 import tempfile
 
@@ -13,7 +14,7 @@ import tempfile
 TRAIN_KEEP = 5
 
 # threshold at which a pair is considered trained
-TRAIN_THRESHOLD = 0.95
+TRAIN_THRESHOLD = 0.8
 
 # maximum word distance at which a wrong submission is counted as correct (only
 # for long keys)
@@ -24,6 +25,59 @@ TRAIN_RETRAIN = 5
 
 # number of untrained pairs to include in the training set
 TRAIN_SET_SIZE = 15
+
+
+PREFIX_SET_RE = re.compile(r"^([A-Z0-9]+)-+([A-Z0-9]+)$")
+PREFIX_SINGLE_RE = re.compile(r"^([A-Z0-9]+)$")
+PREFIXCHAR_TO_BASE37 = {" ": 0}
+PREFIXCHAR_TO_BASE37.update({
+    c: ord(c) - ord("0") + 1
+    for c in "0123456789"
+})
+PREFIXCHAR_TO_BASE37.update({
+    c: ord(c) - ord("A") + 11
+    for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+})
+BASE37_TO_PREFIXCHAR = {
+    v: k
+    for k, v in PREFIXCHAR_TO_BASE37.items()
+}
+
+
+def prefix_to_base37(p):
+    result = 0
+    for i, c in enumerate(reversed(p)):
+        result += PREFIXCHAR_TO_BASE37[c]*(37**i)
+    return result
+
+
+def base37_to_prefix(num):
+    result = []
+    while num > 0:
+        result.append(BASE37_TO_PREFIXCHAR[num % 37])
+        num = num // 37
+    return "".join(reversed(result))
+
+
+def expand_prefixset(start, end):
+    r = range(prefix_to_base37(start), prefix_to_base37(end)+1)
+    if len(r) == 0:
+        raise ValueError("invalid prefix range: {}--{}".format(start, end))
+    for i in r:
+        yield base37_to_prefix(i)
+
+
+def expand_prefixes(parts):
+    for part in parts:
+        m = PREFIX_SET_RE.match(part)
+        if m is not None:
+            yield from expand_prefixset(m.group(1), m.group(2))
+            continue
+        m = PREFIX_SINGLE_RE.match(part)
+        if m is not None:
+            yield m.group(1)
+            continue
+        raise ValueError("invalid prefix specifier: {}".format(part))
 
 
 def read_database(infile):
@@ -45,7 +99,7 @@ def read_database(infile):
             country_parts.append(parts[i])
             i += 1
 
-        prefixes = tuple(parts[i:])
+        prefixes = tuple(expand_prefixes(parts[i:]))
         country = " ".join(country_parts)
         yield country, prio, prefixes
 
@@ -116,7 +170,7 @@ def train_gather_trainingset(traindata, db, rng):
 
 
 def prefixes_parser(s):
-    return {item.strip(",").upper() for item in s.split()}
+    return set(expand_prefixes(item.strip(",") for item in s.split()))
 
 
 def query(prompt, parser=str, subline=None):
@@ -141,47 +195,43 @@ def query(prompt, parser=str, subline=None):
 
 def train_single_forward(trainsubdata, pair):
     country, (primary, *others) = pair
-    primary_answer = query(
-        "Primärer Landeskenner von {}? ".format(country)
-    )
-    others_answer = query(
-        "  Weitere Landeskenner? ",
-        subline=" (leer lassen falls keine)",
+    answer = query(
+        "Landeskenner von {}? ".format(country),
         parser=prefixes_parser
-    )
+    ) or set()
 
-    print()
-
-    if primary_answer != primary:
-        print("  Primärer Landeskenner: inkorrekt.")
+    if primary not in answer:
+        print("  Primärer Landeskenner: fehlt.")
         print("    Richtige Antwort: {}".format(primary))
+        score = 0
     else:
         print("  Primärer Landeskenner: korrekt!")
-
-    score = (primary_answer == primary) * 0.5
-
-    if others_answer is None:
-        others_answer = set()
+        score = 0.5
 
     others = set(others)
-    if others == others_answer:
+
+    # ignore if primary re-occurs
+    answer -= {primary}
+    others -= {primary}
+
+    if others == answer:
         print("  Sekundäre Landeskenner: korrekt!")
         score += 0.5
     else:
         print("  Sekundäre Landeskenner: inkorrekt.")
         print("    Richtige Antwort: {}".format(", ".join(sorted(others))))
         print("    es fehlten: {}".format(", ".join(
-            sorted(others - others_answer))))
+            sorted(others - answer))))
         print("    es waren falsch: {}".format(", ".join(
-            sorted(others_answer - others))))
+            sorted(answer - others))))
 
-        score += ((1 - len(others - others_answer) / len(others)) *
-                  (1 - len(others_answer - others) / (len(others) or 1))) * 0.5
+        score += ((1 - len(others - answer) / (len(others) or 1)) *
+                  (1 - len(answer - others) / (len(answer) or 1))) * 0.5
 
     print()
     print()
 
-    trainsubdata.setdefault(country, []).append(score)
+    trainsubdata.setdefault(pair, []).append(score)
 
     return score
 
@@ -199,6 +249,8 @@ def train_single_reverse(trainsubdata, pair):
         "Welches Land hat {} als Landeskenner? ".format(primary)
     )
 
+    print()
+
     if answer is None:
         score = 0
     else:
@@ -211,6 +263,11 @@ def train_single_reverse(trainsubdata, pair):
     else:
         print("  inkorrekt. Richtige Antwort: {}".format(country))
         score = 0
+
+    print()
+    print()
+
+    trainsubdata.setdefault(pair, []).append(score)
 
     return score
 
@@ -241,17 +298,17 @@ def train(args, db):
             rng
         )
 
-        reverse_score = train_reverse(traindata["reverse"], reverse)
         forward_score = train_forward(traindata["forward"], forward)
+        reverse_score = train_reverse(traindata["reverse"], reverse)
 
     total_score = forward_score + reverse_score
     total_questions = len(forward) + len(reverse)
-    print("Gesamtpunktzahl: {} / {}  ({:.0f}%)".format(
+    print("Gesamtpunktzahl: {:.1f} / {}  ({:.0f}%)".format(
         total_score,
         total_questions,
         (total_score / total_questions) * 100
     ))
-    print("  Länder -> Kenner: {} / {}  ({:.0f}%)".format(
+    print("  Länder -> Kenner: {:.1f} / {}  ({:.0f}%)".format(
         forward_score,
         len(forward),
         forward_score / len(forward) * 100
@@ -261,6 +318,11 @@ def train(args, db):
         len(reverse),
         reverse_score / len(reverse) * 100
     ))
+
+
+def dumpdb(args, db):
+    import pprint
+    pprint.pprint(db)
 
 
 if __name__ == "__main__":
@@ -282,6 +344,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "trainfile",
     )
+
+    parser = subparsers.add_parser("dumpdb")
+    parser.set_defaults(func=dumpdb)
 
     args = mainparser.parse_args()
 

@@ -1,0 +1,75 @@
+Andorra                 C3
+Portugal                CT      CS
+Deutschland             DL      DA--DP
+Spanien                 EA      EB EC ED
+Irland                  EI
+Ukraine                 EM      UT
+Estland                 ES
+Frankreich              F       FA--FE
+Großbritannien          G       GB--GL M
+Schottland              GM      MM
+Ungarn                  HA      HG
+Schweiz                 HB
+Liechtenstein           HB0
+Vatikan                 HV
+Italien                 I       IA--IZ
+Norwegen                LA      LB
+Luxemburg               LX
+Litauen                 LY
+Bulgarien               LZ
+Österreich              OE
+Finnland                OH      OF--OI
+Tschechien              OK      OL
+Slowakai                OM
+Belgien                 ON
+Färöer\ Inseln          OY
+Niederlande             PA      PB PD PE PI
+Russland                UA      RA
+Schweden                SM      SK SL
+Polen                   SP      SO
+Griechenland            SV
+Slowenien               S5
+Türkei                  TA
+Lettland                YL
+Rumänien                YO
+Serbien                 YU
+Monaco                  3A
+Vereinte\ Nationen      4U
+#prio 50
+Kroatien                9A
+Malta                   9H
+Tunesien                3V
+Nigeria                 5N
+Israel                  4X
+Zypern                  5B
+Tansania                5H
+Ruanda                  9X
+Liberia                 EL
+Sudan                   ST
+Ägypten                 SU
+Syrien                  YK
+Südafrika               ZS
+#prio 100
+USA                     W       AA--AL K W N
+#prio 70
+Chile                   CE
+Ecuador                 HC
+Kolumbien               HK
+Argentinien             LU
+Peru                    OA
+Brasilien               PY
+Kanada                  VE
+Mexiko                  XE      XF
+Venezuela               YV
+Sri\ Lanka              4S
+Taiwan                  BV
+China                   BY
+Südkorea                DS--DT
+Philippinen             DU--DZ
+Iran                    EP
+Japan                   JA      JE--JS
+Mongolei                JT
+Russland\ (Asien)       UA9     UA0
+Australien              VK
+Indien                  VU
+Neuseeland              ZL

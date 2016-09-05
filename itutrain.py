@@ -139,7 +139,8 @@ def train_generate_directional_trainingset(
             already_trained.append(pair)
 
     random.shuffle(already_trained)
-    result = to_train[:TRAIN_SET_SIZE] + already_trained[:TRAIN_RETRAIN]
+    result = to_train[:TRAIN_SET_SIZE]
+    result += already_trained[:(TRAIN_SET_SIZE-len(result)+TRAIN_RETRAIN)]
     random.shuffle(result)
     return result
 

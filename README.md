@@ -1,5 +1,15 @@
 # Hamtrain
 
+## Disclaimer
+
+I carefully collected the information in the ``itudb`` and ``db_master`` files,
+but I cannot guarantee for their correctness. They are merely for your
+convenience or for reference for creating your own database files. Before using
+them to learn for an exam or any other purpose, you should verify with an
+official source that the data is (still) correct.
+
+## Description
+
 Hamtrain is most likely only useful for germans, nevertheless, I’ll put the
 readme in English.
 
